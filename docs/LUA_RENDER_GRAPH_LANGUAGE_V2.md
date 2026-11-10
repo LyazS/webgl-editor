@@ -25,6 +25,9 @@ end
 ctx.FPS         -- 固定为 30
 ctx.totalFrames -- config.json 中的 totalFrames
 ctx.frame       -- 当前整数帧
+ctx.width       -- 当前画布逻辑宽度（CSS 像素）
+ctx.height      -- 当前画布逻辑高度（CSS 像素）
+ctx.pixelRatio  -- 当前设备像素比，可用于 shader 的物理像素 uniform
 ```
 
 Lua VM 只开放 Base、Table、String、Math 库。只能加载 `render_graph`：

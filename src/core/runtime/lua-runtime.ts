@@ -2,7 +2,7 @@ import { LuaFactory, LuaLibraries, type LuaEngine } from "wasmoon";
 import { RenderGraphBuilder, RenderPassBuilder } from "../render-graph/graph";
 import type { BufferDataType, MaterialDefinition, RenderGraph, TextStyle, UniformBindings, UniformType, VertexAttributeLayout } from "../render-graph/types";
 
-export interface FrameContext { FPS: 30; totalFrames: number; frame: number; }
+export interface FrameContext { FPS: 30; totalFrames: number; frame: number; width: number; height: number; pixelRatio: number; }
 type LuaState = Record<string, unknown>;
 type BufferDeclaration = { bufferKind: "vertex" | "index"; data: number[]; type: BufferDataType; usage: "static" | "dynamic" };
 type TextureDeclaration = { width: number | "viewport"; height: number | "viewport"; format: "rgba8"; persistent?: boolean; depth?: boolean; capacity?: number; minFilter?: "nearest" | "linear"; magFilter?: "nearest" | "linear"; wrapS?: "clamp-to-edge" | "repeat" | "mirrored-repeat"; wrapT?: "clamp-to-edge" | "repeat" | "mirrored-repeat" };
@@ -41,9 +41,9 @@ export class LuaRenderRuntime {
     } catch (error) { engine.global.close(); this.engine = undefined; this.builder = undefined; throw this.normalizeError(error); }
   }
 
-  async buildGraph(frame: number, _width: number, _height: number, totalFrames: number): Promise<RenderGraph> {
+  async buildGraph(frame: number, width: number, height: number, totalFrames: number, pixelRatio = 1): Promise<RenderGraph> {
     if (!this.engine || !this.source || !this.builder) throw new Error("Lua runtime has not been compiled");
-    try { await this.engine.global.get("render")({ FPS: 30, totalFrames, frame }, this.state); return this.builder.compile("screen"); }
+    try { await this.engine.global.get("render")({ FPS: 30, totalFrames, frame, width, height, pixelRatio }, this.state); return this.builder.compile("screen"); }
     catch (error) { throw this.normalizeError(error); }
   }
 

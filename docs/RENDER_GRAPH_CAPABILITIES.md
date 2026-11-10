@@ -71,6 +71,8 @@ function render(ctx, state)
 end
 ```
 
+`ctx` 提供 `FPS`、`totalFrames`、`frame`，当前画布的逻辑尺寸 `width`、`height`（CSS 像素），以及用于 shader uniform 的 `pixelRatio`。
+
 资源、Program、Mesh、Pass 和 DrawCell 必须在第一次 `render()` 前完成，可以放在脚本加载阶段或 `setup()` 中；`render()` 只更新动态数据。最终必须有一个 Pass 的 target 是 `"screen"`。
 
 完整 API 见 [LUA_RENDER_GRAPH_LANGUAGE_V2.md](./LUA_RENDER_GRAPH_LANGUAGE_V2.md)。
