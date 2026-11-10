@@ -37,6 +37,7 @@
 - Graph 资源校验、Pass 拓扑排序、重复生产者和循环依赖检查。
 - Lua、Graph、shader 编译和链接错误反馈。
 - History/Accumulation 的部分 checkpoint 和恢复能力。
+- 字体资源和 TextCell：逻辑像素定位、换行、对齐、颜色、动态文本、R8 alpha 图集和预乘 Alpha 混合；二进制字体可使用 HarfBuzz shaping、fallback、OpenType features 和 variable axes。
 
 ## 3. Lua 文件合同
 
@@ -170,4 +171,5 @@ color0   → a_color0
 - Compute、GPU simulation、粒子系统。
 - Bloom、Blur、Color grading 等完整后处理套件。
 - 自动相机矩阵、模型/视图/投影注入。
+- 浏览器字体的 FreeType 原生 rasterizer、完整 GPU 多通道 MSDF、彩色 glyph PNG 图集和自动分页上传。
 - Lua 调试器、GLSL 行号诊断面板、完整项目导入导出。

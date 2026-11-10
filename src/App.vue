@@ -399,6 +399,33 @@ function render(ctx, state)
     value = ctx.frame / ctx.FPS
   })
 end`
+  },
+  text: {
+    label: "Text · 动态字体图层",
+    main: `local rg = require("render_graph")
+
+local textCell
+
+function setup()
+  local font = rg.font("ui", { family = "Inter, system-ui, sans-serif" })
+  local screen = rg.renderTarget("screen")
+  screen:clear({ 0.015, 0.02, 0.045, 1.0 })
+  textCell = screen:addTextCell("title", {
+    font = font,
+    text = "Render Graph 字体渲染",
+    size = 42,
+    position = { 40, 44 },
+    color = { 0.45, 0.85, 1.0, 1.0 },
+    lineHeight = 1.2,
+    blend = "premultiplied"
+  })
+  return {}
+end
+
+function render(ctx, state)
+  textCell:setText("Render Graph · Frame " .. ctx.frame)
+  textCell:setPosition({ 40, 44 + math.sin(ctx.frame / ctx.FPS * 2.0) * 8 })
+end`
   }
 };
 const selectedExample = ref("history");
@@ -435,7 +462,7 @@ async function render(updateStatus = true): Promise<boolean> {
   if (!executor || !canvas.value) return false;
   try {
     const graph = await buildGraph();
-    executor.execute(graph, canvas.value.clientWidth, canvas.value.clientHeight, currentFrame.value);
+    await executor.execute(graph, canvas.value.clientWidth, canvas.value.clientHeight, currentFrame.value);
     const nextFrame = currentFrame.value + 1;
     if (nextFrame % checkpointInterval === 0) {
       checkpoints.set(nextFrame, {

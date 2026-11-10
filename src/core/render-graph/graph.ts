@@ -7,6 +7,7 @@ import type {
   MaterialId,
   BufferDataType,
   DrawMeshCommand,
+  DrawTextCommand,
   VertexAttributeLayout,
   RenderResource,
   MeshResource,
@@ -50,6 +51,12 @@ export class RenderPassBuilder {
   drawMesh(options: Omit<DrawMeshCommand, "type">): DrawMeshCommand {
     this.readUniformResources(options.uniforms);
     const command: DrawMeshCommand = { type: "mesh", ...options };
+    this.pass.commands.push(command);
+    return command;
+  }
+
+  drawText(options: Omit<DrawTextCommand, "type">): DrawTextCommand {
+    const command: DrawTextCommand = { type: "text", ...options };
     this.pass.commands.push(command);
     return command;
   }
@@ -193,6 +200,33 @@ export class RenderGraphBuilder {
     return id;
   }
 
+  font(id: ResourceId, definition: { family: string; source?: string; fallback?: string[]; features?: string[]; variations?: Record<string, number>; atlas?: { mode?: "bitmap" | "msdf" | "color"; pageSize?: number; padding?: number }; data?: Uint8Array }): ResourceId {
+    if (this.resources.has(id)) throw new Error(`Resource already exists: ${id}`);
+    this.resources.set(id, { id, kind: "font", ...definition });
+    return id;
+  }
+
+  updateFontData(id: ResourceId, data: Uint8Array): void {
+    const resource = this.resources.get(id);
+    if (!resource || resource.kind !== "font") throw new Error(`Unknown font: ${id}`);
+    resource.data = data;
+  }
+
+  textLayout(id: ResourceId, definition: { font: ResourceId; text: string; style: import("./types").TextStyle; position: [number, number] }): ResourceId {
+    if (this.resources.has(id)) throw new Error(`Resource already exists: ${id}`);
+    if (!this.resources.has(definition.font)) throw new Error(`Unknown font: ${definition.font}`);
+    this.resources.set(id, { id, kind: "text-layout", ...definition });
+    return id;
+  }
+
+  updateTextLayout(id: ResourceId, patch: { text?: string; style?: Partial<import("./types").TextStyle>; position?: [number, number] }): void {
+    const resource = this.resources.get(id);
+    if (!resource || resource.kind !== "text-layout") throw new Error(`Unknown text layout: ${id}`);
+    if (patch.text !== undefined) resource.text = patch.text;
+    if (patch.position !== undefined) resource.position = patch.position;
+    if (patch.style !== undefined) resource.style = { ...resource.style, ...patch.style };
+  }
+
   program(id: MaterialId, definition: MaterialDefinition): MaterialId {
     return this.material(id, definition);
   }
@@ -228,6 +262,14 @@ export class RenderGraphBuilder {
       for (const command of pass.commands) {
         if (command.type === "mesh") this.validateMeshCommand(pass.id, command);
         if (command.type === "mesh") this.validateUniforms(pass.id, command.uniforms);
+        if (command.type === "text") this.validateTextCommand(pass.id, command);
+      }
+    }
+    for (const resource of this.resources.values()) {
+      if (resource.kind !== "font") continue;
+      for (const fallback of resource.fallback ?? []) {
+        const target = this.resources.get(fallback);
+        if (!target || target.kind !== "font") throw new Error(`Font ${resource.id} references an invalid fallback font: ${fallback}`);
       }
     }
 
@@ -238,6 +280,15 @@ export class RenderGraphBuilder {
       passes: orderedPasses,
       output
     };
+  }
+
+  private validateTextCommand(passId: string, command: DrawTextCommand): void {
+    const layout = this.resources.get(command.layout);
+    if (!layout || layout.kind !== "text-layout") throw new Error(`Pass ${passId} references an invalid text layout: ${command.layout}`);
+    const font = this.resources.get(layout.font);
+    if (!font || font.kind !== "font") throw new Error(`Pass ${passId} references an invalid font: ${layout.font}`);
+    if (!Number.isFinite(layout.style.size) || layout.style.size <= 0) throw new Error(`Text layout ${layout.id} size must be positive`);
+    if (layout.style.maxWidth !== undefined && (!Number.isFinite(layout.style.maxWidth) || layout.style.maxWidth <= 0)) throw new Error(`Text layout ${layout.id} maxWidth must be positive`);
   }
 
   private validateDepthState(pass: RenderPass): void {

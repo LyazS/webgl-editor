@@ -111,6 +111,40 @@ color0:   4 个分量
 
 `mesh()` 返回 Mesh 句柄，供 `addDrawCell()` 使用。
 
+### 2.4 Font 和 TextCell
+
+字体资源使用浏览器字体栈名称，也可以保留 `source` 字段供项目字体资产管理器使用：
+
+```lua
+local font = rg.font("ui", {
+    family = "Inter, system-ui, sans-serif",
+    source = "fonts/Inter-Regular.ttf",
+    fallback = { "emoji" },
+    features = { "kern", "liga" },
+    variations = { wght = 450 },
+    atlas = { mode = "msdf", pageSize = 2048, padding = 8 }
+})
+```
+
+`fallback` 是其他 `rg.font()` 资源的 ID；当主字体没有对应 glyph 时，运行时按顺序选择备用字体。`features` 使用 OpenType feature tag，`variations` 使用四字符 axis tag（例如 `wght`、`wdth`、`slnt`）。`atlas.mode` 支持 `bitmap`、`msdf` 和 `color`，`pageSize` 与 `padding` 控制图集分页。
+
+文字通过 Target 的 `addTextCell()` 绘制。文字使用逻辑像素坐标，原点在目标左上角；字体图集由运行时生成并作为只读采样纹理绑定。
+
+```lua
+local title = screen:addTextCell("title", {
+    font = font,
+    text = "Render Graph 字体渲染",
+    size = 42,
+    position = { 40, 48 },
+    color = { 0.45, 0.85, 1.0, 1.0 },
+    lineHeight = 1.2,
+    align = "left",
+    blend = "premultiplied"
+})
+```
+
+`TextCell` 支持 `setText()`、`setPosition()`、`setColor()`、`setStyle()` 和 `setEnabled()`。文字资源应在 `setup()` 中创建，`render()` 中只更新动态字段。`blend` 支持 `alpha`、`premultiplied` 和 `additive`。
+
 ### 2.4 Texture、RenderTarget、HistoryTarget
 
 普通纹理：

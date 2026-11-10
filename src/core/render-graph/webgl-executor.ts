@@ -10,6 +10,7 @@ import type {
   UniformBindings,
   VertexAttributeLayout
 } from "./types";
+import { TextRenderer } from "./text-renderer";
 
 interface RenderTarget {
   kind: "target";
@@ -59,12 +60,14 @@ export class WebGLExecutor {
   private readonly buffers = new Map<string, CachedBuffer>();
   private readonly meshVaos = new Map<string, WebGLVertexArrayObject>();
   private readonly emptyTexture: WebGLTexture;
+  private readonly textRenderer: TextRenderer;
 
   constructor(canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl2", { antialias: true });
     if (!gl) throw new Error("WebGL2 is not available in this browser");
     this.gl = gl;
     this.emptyTexture = this.createEmptyTexture();
+    this.textRenderer = new TextRenderer(gl);
   }
 
   resetHistory(): void {
@@ -115,7 +118,7 @@ export class WebGLExecutor {
     this.gl.viewport(0, 0, pixelWidth, pixelHeight);
   }
 
-  execute(graph: RenderGraph, width: number, height: number, frame = 0): void {
+  async execute(graph: RenderGraph, width: number, height: number, frame = 0): Promise<void> {
     const gl = this.gl;
     this.resize(width, height);
     this.ensureTargets(graph, width, height);
@@ -131,7 +134,7 @@ export class WebGLExecutor {
       gl.viewport(0, 0, target?.width ?? gl.canvas.width, target?.height ?? gl.canvas.height);
       this.prepareAccumulation(targetId);
       this.configureDepth(pass, target);
-      this.executePass(pass, target?.width ?? width, target?.height ?? height, graph, frame);
+      await this.executePass(pass, target?.width ?? width, target?.height ?? height, graph, frame);
       if (targetId !== "screen") this.markHistoryFrame(targetId, frame);
       if (targetId !== "screen") this.advanceAccumulation(targetId);
     }
@@ -141,7 +144,7 @@ export class WebGLExecutor {
     gl.useProgram(null);
   }
 
-  private executePass(pass: RenderPass, _width: number, _height: number, graph: RenderGraph, frame: number): void {
+  private async executePass(pass: RenderPass, _width: number, _height: number, graph: RenderGraph, frame: number): Promise<void> {
     const gl = this.gl;
     for (const command of pass.commands) {
       if (command.type === "clear") {
@@ -150,6 +153,11 @@ export class WebGLExecutor {
       } else if (command.type === "mesh") {
         if (command.enabled === false) continue;
         this.executeMesh(command, graph, frame);
+      } else if (command.type === "text") {
+        if (command.enabled === false) continue;
+        const layout = graph.resources.get(command.layout);
+        if (!layout || layout.kind !== "text-layout") throw new Error(`Missing text layout: ${command.layout}`);
+        await this.textRenderer.render(layout, graph, _width, _height, command.blend);
       }
     }
   }
@@ -184,6 +192,7 @@ export class WebGLExecutor {
 
   private executeMesh(command: DrawMeshCommand, graph: RenderGraph, frame: number): void {
     const gl = this.gl;
+    gl.disable(gl.BLEND);
     const mesh = graph.resources.get(command.mesh);
     if (!mesh || mesh.kind !== "mesh") throw new Error(`Missing mesh: ${command.mesh}`);
     const program = this.getMaterialProgram(command.program, graph);

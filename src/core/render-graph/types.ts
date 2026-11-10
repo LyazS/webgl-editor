@@ -1,7 +1,7 @@
 export type ResourceId = string;
 export type MaterialId = string;
 
-export type TextureFormat = "rgba8";
+export type TextureFormat = "rgba8" | "r8";
 export type BufferDataType = "float32" | "uint8" | "uint16" | "uint32";
 export type PrimitiveTopology = "triangles" | "triangle-strip" | "lines";
 export type VertexSemantic = "position" | "normal" | "uv0" | "color0" | string;
@@ -68,7 +68,38 @@ export interface MeshResource {
   attributes?: Record<string, VertexAttributeLayout>;
 }
 
-export type RenderResource = TextureResource | HistoryTextureResource | AccumulationTextureResource | ScreenResource | BufferResource | MeshResource;
+export interface FontResource {
+  id: ResourceId;
+  kind: "font";
+  family: string;
+  source?: string;
+  fallback?: string[];
+  features?: string[];
+  variations?: Record<string, number>;
+  atlas?: { mode?: "bitmap" | "msdf" | "color"; pageSize?: number; padding?: number };
+  data?: Uint8Array;
+}
+
+export interface TextStyle {
+  size: number;
+  color: [number, number, number, number];
+  lineHeight?: number;
+  letterSpacing?: number;
+  maxWidth?: number;
+  align?: "left" | "center" | "right";
+  anchor?: "top-left" | "baseline" | "center";
+}
+
+export interface TextLayoutResource {
+  id: ResourceId;
+  kind: "text-layout";
+  font: ResourceId;
+  text: string;
+  style: TextStyle;
+  position: [number, number];
+}
+
+export type RenderResource = TextureResource | HistoryTextureResource | AccumulationTextureResource | ScreenResource | BufferResource | MeshResource | FontResource | TextLayoutResource;
 
 export interface MaterialDefinition {
   vertex: string;
@@ -97,6 +128,13 @@ export interface DrawMeshCommand {
   instanceCount?: number;
 }
 
+export interface DrawTextCommand {
+  type: "text";
+  layout: ResourceId;
+  enabled?: boolean;
+  blend?: "alpha" | "premultiplied" | "additive";
+}
+
 export interface UniformBinding {
   type: UniformType;
   value: number | number[] | ResourceId | HistoryTextureReference;
@@ -118,7 +156,7 @@ export interface VertexAttributeLayout {
   divisor?: number;
 }
 
-export type RenderCommand = ClearCommand | DrawMeshCommand;
+export type RenderCommand = ClearCommand | DrawMeshCommand | DrawTextCommand;
 
 export interface RenderPass {
   id: string;
