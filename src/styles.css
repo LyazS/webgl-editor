@@ -1,0 +1,48 @@
+:root {
+  color: #e7edf6;
+  background: #080b12;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 960px; min-height: 100vh; background: radial-gradient(circle at 70% 0%, #121b2a 0, #080b12 42%); }
+button, textarea, input { font: inherit; }
+.app-shell { min-height: 100vh; padding: 28px; }
+.topbar { display: flex; align-items: flex-end; justify-content: space-between; max-width: 1600px; margin: 0 auto 22px; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.topbar-actions select { padding: 8px 10px; border: 1px solid #22324b; border-radius: 8px; background: #0d1420; color: #c7d5e7; font: inherit; }
+.eyebrow, .panel-kicker { color: #7190b7; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+h1 { margin: 7px 0 0; font-size: 26px; letter-spacing: -.03em; font-weight: 650; }
+.status-pill { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid #22324b; border-radius: 999px; background: #0d1420; color: #92a4bd; font-size: 12px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #61d39c; box-shadow: 0 0 12px #61d39c; }
+.workspace { display: grid; grid-template-columns: minmax(360px, .86fr) minmax(540px, 1.4fr); gap: 16px; max-width: 1600px; height: calc(100vh - 125px); min-height: 580px; margin: 0 auto; }
+.panel { overflow: hidden; border: 1px solid #1c2a3d; border-radius: 14px; background: rgba(11, 16, 25, .86); box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+.panel-header { display: flex; align-items: center; justify-content: space-between; height: 62px; padding: 0 16px; border-bottom: 1px solid #1b2839; }
+.panel-header strong { display: block; margin-top: 5px; font-size: 13px; font-weight: 600; }
+.compile-button { padding: 8px 13px; border: 1px solid #315a79; border-radius: 7px; background: #17324a; color: #a9ddff; cursor: pointer; font-size: 12px; }
+.compile-button:hover { background: #204563; }
+.editor-panel { display: flex; flex-direction: column; }
+.editor-body { display: flex; flex: 1; min-height: 0; }
+.file-tree { width: 132px; padding: 15px 8px; border-right: 1px solid #1b2839; background: #0b111b; }
+.tree-title { padding: 0 8px 10px; color: #526984; font-size: 9px; font-weight: 700; letter-spacing: .14em; }
+.file-item { display: flex; align-items: center; width: 100%; gap: 7px; padding: 8px; border: 0; border-radius: 5px; background: transparent; color: #71849b; cursor: pointer; text-align: left; font: 11px "SFMono-Regular", Consolas, monospace; }
+.file-item:hover, .file-item.active { background: #172638; color: #c8d9ec; }
+.file-icon { width: 16px; color: #68b6ee; font-size: 10px; text-align: center; }
+textarea { flex: 1; width: 100%; padding: 18px; border: 0; outline: 0; resize: none; background: #0a0f17; color: #c7d5e7; font: 12px/1.7 "SFMono-Regular", Consolas, monospace; tab-size: 2; }
+.editor-footer { display: flex; justify-content: space-between; padding: 10px 16px; border-top: 1px solid #1b2839; color: #647993; font-size: 11px; }
+.preview-panel { display: flex; flex-direction: column; }
+.graph-stats { color: #667c98; font-size: 11px; }
+.preview-actions { display: flex; align-items: center; gap: 12px; }
+.play-button { padding: 6px 10px; border: 1px solid #29415b; border-radius: 6px; background: #101d2c; color: #9bc5e8; cursor: pointer; font-size: 11px; }
+.play-button:hover { background: #172b40; }
+.canvas-wrap { position: relative; flex: 1; min-height: 0; padding: 18px; background: linear-gradient(135deg, #0b1019, #0d1521); }
+canvas { display: block; width: 100%; height: 100%; border: 1px solid #26384c; border-radius: 8px; background: #0b1019; }
+.timeline { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-top: 1px solid #1b2839; }
+.timeline-label { display: flex; align-items: baseline; gap: 7px; min-width: 72px; color: #6d829e; font-size: 10px; letter-spacing: .12em; }
+.timeline-label strong { color: #d6e2f2; font-size: 13px; letter-spacing: 0; }
+.timeline-end { color: #61748d; font: 11px monospace; }
+input[type="range"] { flex: 1; accent-color: #68b6ee; }
+.loop-control, .timeline-config { display: flex; align-items: center; gap: 5px; color: #71849b; font-size: 11px; white-space: nowrap; }
+.timeline-config { color: #71849b; }
