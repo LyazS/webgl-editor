@@ -15,6 +15,6 @@
 - Lua 运行时的权威实现是 `src/core/runtime/lua-runtime.ts`。
 - Graph 类型、资源校验和拓扑排序位于 `src/core/render-graph/`。
 - Lua 资源和 Target 在第一次 `render()` 前创建（通常放在脚本加载阶段或 `setup()`）；`render(ctx, state)` 只更新动态数据。Render Pass 只作为内部 Graph IR 存在。
-- Lua API 文档以 `docs/LUA_RENDER_GRAPH_LANGUAGE_V2.md` 为准；能力清单以 `docs/RENDER_GRAPH_CAPABILITIES.md` 为准。
-- 修改 Lua API 时，必须同时检查运行时、App 示例和三份相关文档。
+- coding agent 编写 Lua 渲染脚本时先读 `docs/LUA_RENDERING_AGENT_GUIDE.md`；完整 Lua API 以 `docs/LUA_RENDER_GRAPH_LANGUAGE.md` 为准，能力清单以 `docs/RENDER_GRAPH_CAPABILITIES.md` 为准。
+- 修改 Lua API 时，必须同时检查运行时、App 示例和 `docs/` 中受影响的现行文档。
 - 修改后至少运行 `npm run build`。

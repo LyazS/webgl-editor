@@ -1,0 +1,14 @@
+export { SvgDocument } from '../svg/document';
+export type { SvgOptions, SvgSnapshot } from '../svg/document';
+export { VectorRenderer } from './renderer';
+export type { ImageResolver } from './renderer';
+export { VectorCompiler } from './compiler';
+export type { VectorPlan, VectorPass, VectorOperation } from './compiler';
+export { parsePath, flatten, pathLength, pointAtLength } from './path';
+export type { Segment, Contour } from './path';
+export { tessellate, strokeContours, contains } from './geometry';
+export type { FillRule, StrokeStyle } from './geometry';
+export type { VectorNode, Paint, Color } from './scene';
+export { identity, multiply, inverse, parseTransform, transformPoint, viewBoxMatrix } from './math';
+export type { Matrix, Point, Bounds } from './math';
+export { decodeSvgFont } from "../svg/font";

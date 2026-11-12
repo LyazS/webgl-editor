@@ -1,3 +1,6 @@
+import type { VectorPlan } from "../vector/compiler";
+import type { SvgDocument } from "../svg/document";
+import type { Matrix } from "../vector/math";
 export type ResourceId = string;
 export type MaterialId = string;
 
@@ -68,15 +71,17 @@ export interface MeshResource {
   attributes?: Record<string, VertexAttributeLayout>;
 }
 
-export interface FontResource {
-  id: ResourceId;
-  kind: "font";
+export interface FontDefinition {
+  /** Optional display name. Font outlines always come from binary assets. */
   family: string;
   source?: string;
-  fallback?: string[];
   features?: string[];
-  variations?: Record<string, number>;
-  atlas?: { mode?: "bitmap" | "msdf" | "color"; pageSize?: number; padding?: number };
+  atlas?: { pageSize?: number; padding?: number };
+}
+
+export interface FontResource extends FontDefinition {
+  id: ResourceId;
+  kind: "font";
   data?: Uint8Array;
 }
 
@@ -99,7 +104,10 @@ export interface TextLayoutResource {
   position: [number, number];
 }
 
-export type RenderResource = TextureResource | HistoryTextureResource | AccumulationTextureResource | ScreenResource | BufferResource | MeshResource | FontResource | TextLayoutResource;
+export interface VectorResource { id: ResourceId; kind: "vector"; document: SvgDocument; }
+export interface DrawVectorCommand { type: "vector"; document: ResourceId; transform: Matrix; width?: number; height?: number; opacity: number; enabled?: boolean; compiledPlan?: VectorPlan; }
+
+export type RenderResource = VectorResource | TextureResource | HistoryTextureResource | AccumulationTextureResource | ScreenResource | BufferResource | MeshResource | FontResource | TextLayoutResource;
 
 export interface MaterialDefinition {
   vertex: string;
@@ -156,7 +164,7 @@ export interface VertexAttributeLayout {
   divisor?: number;
 }
 
-export type RenderCommand = ClearCommand | DrawMeshCommand | DrawTextCommand;
+export type RenderCommand = DrawVectorCommand | ClearCommand | DrawMeshCommand | DrawTextCommand;
 
 export interface RenderPass {
   id: string;

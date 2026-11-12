@@ -1,27 +1,9 @@
 declare module "@playcanvas/msdfgen-wasm" {
-  interface GlyphBitmap {
-    width: number;
-    height: number;
-    rgba: Uint8Array;
-    advance: number;
-    translateX: number;
-    translateY: number;
-    boundsL: number;
-    boundsB: number;
-    boundsR: number;
-    boundsT: number;
-    range: number;
+  export interface MsdfGlyph {
+    width: number; height: number; rgba: Uint8Array;
+    translateX: number; translateY: number; range: number;
+    boundsL: number; boundsB: number; boundsR: number; boundsT: number;
   }
-
-  interface LoadedFont {
-    generateGlyph(codepoint: number, size: number, pxrange: number): GlyphBitmap | null;
-    ok(): boolean;
-    delete(): void;
-  }
-
-  interface Msdfgen {
-    loadFont(bytes: Uint8Array | ArrayBuffer): LoadedFont | null;
-  }
-
-  export function createMsdfgen(options?: { moduleOverrides?: Record<string, unknown> }): Promise<Msdfgen>;
+  export interface MsdfFont { generateGlyph(codepoint: number, size: number, range: number): MsdfGlyph | null; delete(): void; }
+  export function createMsdfgen(options?: { moduleOverrides?: { locateFile: (path: string) => string } }): Promise<{ loadFont(data: Uint8Array): MsdfFont | null }>;
 }

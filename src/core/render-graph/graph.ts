@@ -8,6 +8,7 @@ import type {
   BufferDataType,
   DrawMeshCommand,
   DrawTextCommand,
+  DrawVectorCommand,
   VertexAttributeLayout,
   RenderResource,
   MeshResource,
@@ -59,6 +60,11 @@ export class RenderPassBuilder {
     const command: DrawTextCommand = { type: "text", ...options };
     this.pass.commands.push(command);
     return command;
+  }
+
+  drawVector(options: Omit<DrawVectorCommand, "type">): DrawVectorCommand {
+    const command: DrawVectorCommand = { type: "vector", ...options };
+    this.pass.commands.push(command); return command;
   }
 
   private readUniformResources(uniforms?: UniformBindings): void {
@@ -200,16 +206,21 @@ export class RenderGraphBuilder {
     return id;
   }
 
-  font(id: ResourceId, definition: { family: string; source?: string; fallback?: string[]; features?: string[]; variations?: Record<string, number>; atlas?: { mode?: "bitmap" | "msdf" | "color"; pageSize?: number; padding?: number }; data?: Uint8Array }): ResourceId {
+  font(id: ResourceId, definition: import("./types").FontDefinition): ResourceId {
     if (this.resources.has(id)) throw new Error(`Resource already exists: ${id}`);
+    if (!definition.family.trim()) throw new Error(`Font ${id} requires a font name`);
+    const { pageSize = 2048, padding = 2 } = definition.atlas ?? {};
+    if (!Number.isInteger(pageSize) || pageSize < 32) throw new Error(`Font ${id} atlas pageSize must be an integer >= 32`);
+    if (!Number.isInteger(padding) || padding < 1 || padding * 2 >= pageSize) throw new Error(`Font ${id} atlas padding must be positive and fit the page`);
     this.resources.set(id, { id, kind: "font", ...definition });
     return id;
   }
 
   updateFontData(id: ResourceId, data: Uint8Array): void {
-    const resource = this.resources.get(id);
-    if (!resource || resource.kind !== "font") throw new Error(`Unknown font: ${id}`);
-    resource.data = data;
+    const font = this.resources.get(id);
+    if (!font || font.kind !== "font") throw new Error(`Unknown font: ${id}`);
+    if (data.length < 12 || ![0x00010000, 0x4f54544f].includes(new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0))) throw new Error(`Font ${id} requires standalone TTF/OTF binary data`);
+    font.data = data;
   }
 
   textLayout(id: ResourceId, definition: { font: ResourceId; text: string; style: import("./types").TextStyle; position: [number, number] }): ResourceId {
@@ -225,6 +236,11 @@ export class RenderGraphBuilder {
     if (patch.text !== undefined) resource.text = patch.text;
     if (patch.position !== undefined) resource.position = patch.position;
     if (patch.style !== undefined) resource.style = { ...resource.style, ...patch.style };
+  }
+
+  vector(id: ResourceId, document: import("../svg/document").SvgDocument): ResourceId {
+    if (this.resources.has(id)) throw new Error(`Resource already exists: ${id}`);
+    this.resources.set(id, { id, kind: "vector", document }); return id;
   }
 
   program(id: MaterialId, definition: MaterialDefinition): MaterialId {
@@ -263,13 +279,13 @@ export class RenderGraphBuilder {
         if (command.type === "mesh") this.validateMeshCommand(pass.id, command);
         if (command.type === "mesh") this.validateUniforms(pass.id, command.uniforms);
         if (command.type === "text") this.validateTextCommand(pass.id, command);
-      }
-    }
-    for (const resource of this.resources.values()) {
-      if (resource.kind !== "font") continue;
-      for (const fallback of resource.fallback ?? []) {
-        const target = this.resources.get(fallback);
-        if (!target || target.kind !== "font") throw new Error(`Font ${resource.id} references an invalid fallback font: ${fallback}`);
+        if (command.type === "vector") {
+          const resource = this.resources.get(command.document);
+          if (!resource || resource.kind !== "vector") throw new Error(`Invalid vector resource: ${command.document}`);
+          if (command.transform.length !== 6 || !command.transform.every(Number.isFinite)) throw new Error("Vector transform requires six finite numbers");
+          if (!Number.isFinite(command.opacity) || command.opacity < 0 || command.opacity > 1) throw new Error("Vector opacity must be between 0 and 1");
+          for (const value of [command.width, command.height]) if (value !== undefined && (!Number.isFinite(value) || value <= 0)) throw new Error("Vector viewport must be positive");
+        }
       }
     }
 
@@ -287,8 +303,11 @@ export class RenderGraphBuilder {
     if (!layout || layout.kind !== "text-layout") throw new Error(`Pass ${passId} references an invalid text layout: ${command.layout}`);
     const font = this.resources.get(layout.font);
     if (!font || font.kind !== "font") throw new Error(`Pass ${passId} references an invalid font: ${layout.font}`);
+    if (!font.data) throw new Error(`Font ${font.id} has no loaded TTF/OTF data`);
     if (!Number.isFinite(layout.style.size) || layout.style.size <= 0) throw new Error(`Text layout ${layout.id} size must be positive`);
     if (layout.style.maxWidth !== undefined && (!Number.isFinite(layout.style.maxWidth) || layout.style.maxWidth <= 0)) throw new Error(`Text layout ${layout.id} maxWidth must be positive`);
+    if (layout.style.lineHeight !== undefined && (!Number.isFinite(layout.style.lineHeight) || layout.style.lineHeight <= 0)) throw new Error(`Text layout ${layout.id} lineHeight must be positive`);
+    if (layout.style.letterSpacing !== undefined && !Number.isFinite(layout.style.letterSpacing)) throw new Error(`Text layout ${layout.id} letterSpacing must be finite`);
   }
 
   private validateDepthState(pass: RenderPass): void {

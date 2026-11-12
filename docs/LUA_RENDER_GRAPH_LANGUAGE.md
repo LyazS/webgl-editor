@@ -30,13 +30,15 @@ ctx.height      -- 当前画布逻辑高度（CSS 像素）
 ctx.pixelRatio  -- 当前设备像素比，可用于 shader 的物理像素 uniform
 ```
 
-Lua VM 只开放 Base、Table、String、Math 库。只能加载 `render_graph`：
+Lua VM 只开放 Base、Table、String、Math 库。`require("render_graph")` 用来加载 Render Graph SDK；项目内的其他 Lua 文件也可以通过 `require` 加载：
 
 ```lua
 local rg = require("render_graph")
+local animation = require("lib/animation") -- 对应 lib/animation.lua
+-- 也支持 require("lib.animation")
 ```
 
-IO、OS、Debug、DOM、WebGL 对象和其他 Lua 模块均不可用。
+模块路径相对于项目根目录，只能读取虚拟文件树中已有的 `.lua` 文件。省略 `.lua` 时运行时会自动补上；模块只执行一次并缓存返回值，模块应使用 `return` 返回表或其他值。模块之间的循环依赖会报错。路径不能以 `/` 开头，也不能包含 `.` 或 `..` 路径段。IO、OS、Debug、DOM、WebGL 对象和外部 Lua 模块均不可用。
 
 ## 2. 资源 API
 
@@ -116,22 +118,23 @@ color0:   4 个分量
 
 ### 2.4 Font 和 TextCell
 
-字体资源使用浏览器字体栈名称，也可以保留 `source` 字段供项目字体资产管理器使用：
+字体统一使用二进制字体和 MSDF 渲染，不读取系统字体或 Canvas 字形。底层自带 Noto Sans SC Regular（含中文和拉丁字符，OFL 授权），不填 `source` 时使用该字体；`family` 仅作为资源说明，不会解析浏览器 CSS 字体栈。
 
 ```lua
-local font = rg.font("ui", {
-    family = "Inter, system-ui, sans-serif",
-    source = "fonts/Inter-Regular.ttf",
-    fallback = { "emoji" },
+-- 使用底层默认字体
+local font = rg.font("ui")
+-- 或指定虚拟文件系统中的二进制资产 / 可 fetch 的字体 URL
+local custom = rg.font("custom", {
+    family = "My Font",
+    source = "fonts/MyFont-Regular.otf",
     features = { "kern", "liga" },
-    variations = { wght = 450 },
-    atlas = { mode = "msdf", pageSize = 2048, padding = 8 }
+    atlas = { pageSize = 2048, padding = 2 }
 })
 ```
 
-`fallback` 是其他 `rg.font()` 资源的 ID；当主字体没有对应 glyph 时，运行时按顺序选择备用字体。`features` 使用 OpenType feature tag，`variations` 使用四字符 axis tag（例如 `wght`、`wdth`、`slnt`）。`atlas.mode` 支持 `bitmap`、`msdf` 和 `color`，`pageSize` 与 `padding` 控制图集分页。
+`source` 支持独立 TTF/OTF，在首次 `render()` 前加载、校验；失败会报错，不会回退系统字体。`features` 是 HarfBuzz OpenType feature 字符串。字形图集固定使用 MSDF；`atlas.mode = "msdf"` 可兼容传入，其他模式会报错。`pageSize` 必须容纳 64px 字形及两侧 `padding`。字重和斜体请提供相应的静态字体文件；当前不支持 `weight`、`style`、`fallback`、`variations` 或彩色 emoji。
 
-文字通过 Target 的 `addTextCell()` 绘制。文字使用逻辑像素坐标，原点在目标左上角；字体图集由运行时生成并作为只读采样纹理绑定。
+文字通过 Target 的 `addTextCell()` 绘制。文字使用逻辑像素坐标，原点在目标左上角；字体图集由运行时按 glyph ID 增量生成并作为只读采样纹理绑定。支持显式换行、按 shaping cluster 折行（`maxWidth`）、`align` 和 `anchor`。`lineHeight` 是字号倍数，`letterSpacing` 加在 cluster 之间。
 
 ```lua
 local title = screen:addTextCell("title", {
@@ -146,9 +149,9 @@ local title = screen:addTextCell("title", {
 })
 ```
 
-`TextCell` 支持 `setText()`、`setPosition()`、`setColor()`、`setStyle()` 和 `setEnabled()`。文字资源应在 `setup()` 中创建，`render()` 中只更新动态字段。`blend` 支持 `alpha`、`premultiplied` 和 `additive`。
+`TextCell` 支持 `setText()`、`setPosition()`、`setColor()`、`setStyle()` 和 `setEnabled()`。文字资源应在 `setup()` 中创建，`render()` 中只更新动态字段。`blend` 支持 `alpha`、`premultiplied` 和 `additive`。 `setPosition()`、`setColor()` 复用 shaping 和布局，仅更新对应实例属性；字号或折行参数变化会更新局部几何，仍复用 shaping 和字形图集。连续 TextCell 在图集页与混合模式一致时自动合批，保留原始命令顺序。
 
-### 2.4 Texture、RenderTarget、HistoryTarget
+### 2.5 Texture、RenderTarget、HistoryTarget
 
 普通纹理：
 
@@ -350,3 +353,34 @@ end
 ## 7. 当前不支持
 
 当前没有图片、视频、摄像头纹理，Blend、Stencil、Cull、MRT、MSAA 控制、Compute、GPU simulation 和自动相机矩阵。纹理格式目前只有 `rgba8`。
+
+## SVG 与程序化矢量路径
+
+SVG/Path 资源在首次 `render()` 前创建。无需自行声明 GLSL Program 或 Mesh：矢量编译器生成几何和合成子图，并通过当前 Target 的 VectorCell 绘制。
+
+```lua
+local art = rg.svg("art", { source = "assets/art.svg" })
+-- 或 rg.svg("art", { data = [[<svg>...</svg>]], font = "my-font" })
+local screen = rg.renderTarget("screen")
+local cell = screen:addVectorCell("art", {
+    svg = art, width = 720, height = 440,
+    transform = { 1, 0, 0, 1, 0, 0 }, opacity = 1
+})
+```
+
+`source` 和 `data` 必须且只能指定一个；`source` 指向虚拟文本文件。`strict` 默认 true，拒绝未支持的元素。`font` 使用 `rg.font()` 的字体名；含文字且没有指定 font 时使用项目内置 OTF。SVG 文字通过 HarfBuzz 字形轮廓生成矢量几何。`fonts` 可将 CSS 字体名（含可选 `:weight:style`）映射到 `rg.font()` 名称；文档内 @font-face 可加载 TTF/OTF/WOFF1。
+
+程序化路径：
+
+```lua
+local path = rg.path({ d = "M0 0H100V100H0Z", fill = "#69d8c5", stroke = "white", strokeWidth = 2, fillRule = "nonzero" })
+local shape = screen:addVectorCell("shape", { path = path })
+```
+
+资源句柄：`setAttribute(elementId, name, value)`、`setText(elementId, text)`、`hitTest(x,y,width,height)`、`getDiagnostics()`；路径额外提供 `setData(d)`。Cell：`setTransform(matrix6)`、`setOpacity(value)`、`setEnabled(value)`、`setViewport(width,height)`。矩阵为 SVG affine `{a,b,c,d,e,f}`，坐标为左上角起点的逻辑像素；width/height 控制 SVG 根 viewport，省略时使用所在 Target 的尺寸。
+
+SVG 时钟动画由 `ctx.frame / ctx.FPS` 驱动。绘制顺序遵循同一 Target 中 Mesh、Text、Vector 命令的添加顺序；可绘制到普通、History、Accumulation Target。
+
+SVG 的动态属性与叶子文字纳入 runtime checkpoint，seek 可跨重新编译恢复；`setText` 对包含 tspan/textPath 的容器要求更新其叶子，保持结构稳定。
+
+完整参数、兼容范围、预算和测试见 [SVG_RENDERING.md](./SVG_RENDERING.md)。本实现没有承诺浏览器完整 SVG2 支持；脚本、foreignObject、浏览器级 CSS/段落排版、WOFF2 和事件驱动 SMIL 不在支持范围。

@@ -1,7 +1,9 @@
+import { VectorRenderer } from "../vector/renderer";
 import type {
   BufferDataType,
   DepthFunc,
   DrawMeshCommand,
+  DrawTextCommand,
   HistoryTextureReference,
   PrimitiveTopology,
   RenderGraph,
@@ -10,7 +12,7 @@ import type {
   UniformBindings,
   VertexAttributeLayout
 } from "./types";
-import { TextRenderer } from "./text-renderer";
+import { TextRenderer, type TextCellDraw } from "./text-renderer";
 
 interface RenderTarget {
   kind: "target";
@@ -53,7 +55,15 @@ export interface TemporalCheckpoint {
   accumulation: Record<string, { readIndex: 0 | 1; initialized: boolean; slots: Uint8Array[] }>;
 }
 
+export interface ScreenPixels {
+  width: number;
+  height: number;
+  /** RGBA8 pixels in top-to-bottom row order. */
+  data: Uint8Array;
+}
+
 export class WebGLExecutor {
+  private destroyed = false;
   private readonly gl: WebGL2RenderingContext;
   private readonly targets = new Map<string, RenderTarget | HistoryRenderTarget | AccumulationRenderTarget>();
   private readonly materialPrograms = new Map<string, CachedMaterialProgram>();
@@ -61,13 +71,30 @@ export class WebGLExecutor {
   private readonly meshVaos = new Map<string, WebGLVertexArrayObject>();
   private readonly emptyTexture: WebGLTexture;
   private readonly textRenderer: TextRenderer;
+  private readonly vectorRenderer: VectorRenderer;
 
   constructor(canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext("webgl2", { antialias: true });
+    // Keep the default framebuffer available for frame capture after a render.
+    // Without this flag the browser may discard it after presenting the canvas.
+    const gl = canvas.getContext("webgl2", { antialias: true, preserveDrawingBuffer: true });
     if (!gl) throw new Error("WebGL2 is not available in this browser");
     this.gl = gl;
     this.emptyTexture = this.createEmptyTexture();
     this.textRenderer = new TextRenderer(gl);
+    this.vectorRenderer = new VectorRenderer(gl);
+  }
+
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.textRenderer.destroy();
+    this.vectorRenderer.destroy();
+    for (const target of this.targets.values()) this.deleteTarget(target);
+    for (const { program } of this.materialPrograms.values()) this.gl.deleteProgram(program);
+    for (const { buffer } of this.buffers.values()) this.gl.deleteBuffer(buffer);
+    for (const vao of this.meshVaos.values()) this.gl.deleteVertexArray(vao);
+    this.gl.deleteTexture(this.emptyTexture);
+    this.targets.clear(); this.materialPrograms.clear(); this.buffers.clear(); this.meshVaos.clear();
   }
 
   resetHistory(): void {
@@ -119,6 +146,7 @@ export class WebGLExecutor {
   }
 
   async execute(graph: RenderGraph, width: number, height: number, frame = 0): Promise<void> {
+    if (this.destroyed) throw new Error("WebGL executor has been destroyed");
     const gl = this.gl;
     this.resize(width, height);
     this.ensureTargets(graph, width, height);
@@ -135,6 +163,7 @@ export class WebGLExecutor {
       this.prepareAccumulation(targetId);
       this.configureDepth(pass, target);
       await this.executePass(pass, target?.width ?? width, target?.height ?? height, graph, frame);
+      if (this.destroyed) return;
       if (targetId !== "screen") this.markHistoryFrame(targetId, frame);
       if (targetId !== "screen") this.advanceAccumulation(targetId);
     }
@@ -144,20 +173,58 @@ export class WebGLExecutor {
     gl.useProgram(null);
   }
 
+  readScreenPixels(): ScreenPixels {
+    if (this.destroyed) throw new Error("WebGL executor has been destroyed");
+    const gl = this.gl;
+    const width = gl.canvas.width;
+    const height = gl.canvas.height;
+    const data = new Uint8Array(width * height * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+
+    // WebGL's origin is bottom-left while canvas images use top-left rows.
+    const rowSize = width * 4;
+    const row = new Uint8Array(rowSize);
+    for (let y = 0; y < Math.floor(height / 2); y += 1) {
+      const top = y * rowSize;
+      const bottom = (height - y - 1) * rowSize;
+      row.set(data.subarray(top, top + rowSize));
+      data.copyWithin(top, bottom, bottom + rowSize);
+      data.set(row, bottom);
+    }
+    return { width, height, data };
+  }
+
   private async executePass(pass: RenderPass, _width: number, _height: number, graph: RenderGraph, frame: number): Promise<void> {
     const gl = this.gl;
-    for (const command of pass.commands) {
+    for (let index = 0; index < pass.commands.length;) {
+      if (this.destroyed) return;
+      const command = pass.commands[index];
+      if (command.type === "text") {
+        const key = command;
+        const cells: TextCellDraw[] = [];
+        // Batch only a contiguous text run; clear, mesh and pass boundaries are barriers.
+        while (index < pass.commands.length && pass.commands[index].type === "text") {
+          const text = pass.commands[index++] as DrawTextCommand;
+          if (text.enabled === false) continue;
+          const layout = graph.resources.get(text.layout);
+          if (!layout || layout.kind !== "text-layout") throw new Error(`Missing text layout: ${text.layout}`);
+          cells.push({ layout, blend: text.blend });
+        }
+        await this.textRenderer.renderBatch(cells, graph, _width, _height, key);
+        if (this.destroyed) return;
+        continue;
+      }
+      index++;
       if (command.type === "clear") {
         gl.clearColor(...command.color);
         gl.clear(gl.COLOR_BUFFER_BIT);
-      } else if (command.type === "mesh") {
-        if (command.enabled === false) continue;
+      } else if (command.type === "vector" && command.enabled !== false) {
+        const resource = graph.resources.get(command.document);
+        if (!resource || resource.kind !== "vector") throw new Error(`Missing vector document: ${command.document}`);
+        command.compiledPlan = await this.vectorRenderer.render(resource.document.scene(command.width ?? _width, command.height ?? _height, frame / 30), _width, _height, command.transform, command.opacity);
+      } else if (command.type === "mesh" && command.enabled !== false) {
         this.executeMesh(command, graph, frame);
-      } else if (command.type === "text") {
-        if (command.enabled === false) continue;
-        const layout = graph.resources.get(command.layout);
-        if (!layout || layout.kind !== "text-layout") throw new Error(`Missing text layout: ${command.layout}`);
-        await this.textRenderer.render(layout, graph, _width, _height, command.blend);
       }
     }
   }

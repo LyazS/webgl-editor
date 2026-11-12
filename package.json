@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "test:svg:browser": "node tests/run-svg-browser.mjs"
   },
   "dependencies": {
     "@playcanvas/msdfgen-wasm": "^0.1.1",
